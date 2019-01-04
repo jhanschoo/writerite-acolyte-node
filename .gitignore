@@ -1,0 +1,14 @@
+# Dependency directories
+node_modules/
+
+# generated files
+generated/
+
+# logs
+yarn-error.log
+
+# dist
+dist/
+
+# config
+config/
