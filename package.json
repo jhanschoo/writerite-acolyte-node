@@ -19,6 +19,7 @@
     "apollo-utilities": "^1.0.27",
     "config": "^3.0.1",
     "graphql": "^14.0.2",
+    "graphql-tag": "^2.10.0",
     "node-fetch": "^2.3.0",
     "redis": "^2.8.0",
     "subscriptions-transport-ws": "^0.9.15",
@@ -40,7 +41,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "start:dev": "tsc && NODE_ENV=development node dist/index.js",
+    "start:dev": "tsc && NODE_EXTRA_CA_CERTS=\"${HOME}/pki/secp256r1/j-vbox-ubuntu.secp256r1.ca.crt\" NODE_ENV=development node dist/index.js",
     "start:test": "tsc && NODE_ENV=testing node dist/index.js",
     "test": "jest --runInBand"
   }
