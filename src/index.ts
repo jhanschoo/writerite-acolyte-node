@@ -1,7 +1,7 @@
-import redis from 'redis';
 import { fork, ChildProcess } from 'child_process';
 
 import { lock, getRoomInfo, sendMessageFactory } from './util';
+import { createRedis } from './createRedis';
 
 interface IProcessRegistry {
   [roomId: string]: ChildProcess;
@@ -10,7 +10,7 @@ interface IProcessRegistry {
 const procRegistry: IProcessRegistry = {};
 const PROC_REGISTRY = 'procRegistry';
 
-const redisClient = redis.createClient();
+const redisClient = createRedis();
 redisClient.subscribe('writerite:room:serving');
 
 redisClient.on('message', (_channel: string, message: string) => {

@@ -1,13 +1,17 @@
-import redis from 'redis';
+import config from 'config';
 import { sendMessage } from './serveRoomUtil';
 import { ApolloQueryResult } from 'apollo-client';
 import { IRoomInfoData } from './gql';
+import { IRedisConfig } from './types';
+import { createRedis } from './createRedis';
 
 const [nodeBin, script, roomId, deckId] = process.argv;
 
+const REDIS = config.get<IRedisConfig>('REDIS');
+
 const main = async (room: ApolloQueryResult<IRoomInfoData>) => {
 
-  const messageSubscriber = redis.createClient();
+  const messageSubscriber = createRedis();
   if (!room.data || !room.data.rwRoom) {
     throw new Error('Unable to obtain room info');
   }

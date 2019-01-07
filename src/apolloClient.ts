@@ -4,27 +4,19 @@ import { InMemoryCache } from 'apollo-cache-inmemory';
 import { setContext } from 'apollo-link-context';
 import { onError } from 'apollo-link-error';
 import { createPersistedQueryLink } from 'apollo-link-persisted-queries';
-import { WebSocketLink } from 'apollo-link-ws';
-import { SubscriptionClient } from 'subscriptions-transport-ws';
-import MessageTypes from 'subscriptions-transport-ws/dist/message-types';
-import { split } from 'apollo-link';
-import { getMainDefinition } from 'apollo-utilities';
-import { OperationDefinitionNode } from 'graphql';
-import { withClientState } from 'apollo-link-state';
 
 import fetch from 'node-fetch';
-import ws from 'ws';
 
-import redis from 'redis';
 import config = require('config');
+import { createRedis } from './createRedis';
+import { IGraphQLConfig } from './types';
 
 // c.f. https://github.com/Akryum/vue-cli-plugin-apollo/blob/master/graphql-client/src/index.js
 
 let TOKEN: string | null = null;
-const GRAPHQL_WS = config.get<string>('GRAPHQL_WS');
-const GRAPHQL_HTTP = config.get<string>('GRAPHQL_HTTP');
+const GRAPHQL = config.get<IGraphQLConfig>('GRAPHQL');
 
-const redisClient = redis.createClient();
+const redisClient = createRedis();
 
 redisClient.get('writerite:acolyte:jwt', (err, token) => {
   if (err) {
@@ -43,7 +35,7 @@ const getAuth = () => {
 const cache = new InMemoryCache();
 
 const httpLink = createUploadLink({
-  uri: GRAPHQL_HTTP,
+  uri: GRAPHQL.HTTP,
   credentials: 'same-origin',
   fetch,
 });
