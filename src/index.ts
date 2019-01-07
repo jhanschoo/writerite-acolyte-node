@@ -1,134 +1,63 @@
-import config from 'config';
 import redis from 'redis';
-import gql from 'graphql-tag';
+import { fork, ChildProcess } from 'child_process';
 
-import { client } from './apolloClient';
+import { lock, getRoomInfo, sendMessageFactory } from './util';
 
-const { NODE_ENV } = process.env;
-
-// tslint:disable-next-line: no-console
-console.log(client.version);
-
-interface IRwCard {
-  id: string;
-  front: string;
-  back: string;
+interface IProcessRegistry {
+  [roomId: string]: ChildProcess;
 }
 
-const ROOM_INFO_QUERY = gql`
-query RoomInfo($roomId: ID!) {
-  rwRoom(id: $roomId) {
-    id
-    name
-    deck {
-      id
-      name
-      cards {
-        id
-        front
-        back
+const procRegistry: IProcessRegistry = {};
+const PROC_REGISTRY = 'procRegistry';
+
+const redisClient = redis.createClient();
+redisClient.subscribe('writerite:room:serving');
+
+redisClient.on('message', (_channel: string, message: string) => {
+  const separator = message.indexOf(':');
+  const roomId = message.slice(0, separator);
+  const deckId = message.slice(separator + 1);
+  lock.acquire(PROC_REGISTRY, (forkingDone) => {
+    if (procRegistry[roomId]) {
+      const oldFork = procRegistry[roomId];
+      // possible synchronization lag in that a process may terminate
+      // and release the PID, but cleanup hasn't deregistered the handle
+      // before this is executed. Nevertheless, it is very unlikely
+      // that the PID has been reassigned since, so this should be fine
+      // without a more complex synchronization mechanism.
+      oldFork.kill();
+      delete procRegistry[roomId];
+      // tslint:disable-next-line: no-console
+      console.log('killing old process');
+    }
+    // tslint:disable-next-line: no-console
+    console.log('starting new acolyte');
+    const forked = fork('./dist/serveRoom.js', [roomId, deckId]);
+    // the below deregisters the exited process so that
+    // old process handles' kill() are not used to kill potentially
+    // different processes with a reused PID
+    forked.on('exit', () => lock.acquire(PROC_REGISTRY, (cleanupDone) => {
+      // tslint:disable-next-line: no-console
+      console.log('process exited');
+      if (procRegistry[roomId] === forked) {
+        delete procRegistry[roomId];
       }
-    }
-  }
-}
-`;
+      cleanupDone();
+    }));
+    procRegistry[roomId] = forked;
+    forkingDone();
 
-interface IRoomInfoVariables {
-  roomId: string;
-}
-
-interface IRoomInfoData {
-  rwRoom: null | {
-    id: string;
-    name: string;
-    deck: {
-      id: string;
-      name: string;
-      cards: IRwCard[];
-    }
-  };
-}
-
-const MESSAGE_CREATE_MUTATION = gql`
-mutation MessageCreate($roomId: ID! $content: String!) {
-  rwRoomMessageCreate(roomId: $roomId content: $content) {
-    id
-    content
-  }
-}
-`;
-
-interface IMessageCreateVariables {
-  roomId: string;
-  content: string;
-}
-
-interface IMessageCreateData {
-  rwRoomMessageCreate: {
-    id: string,
-    content: string,
-  };
-}
-
-const getRoomInfo = async (roomId: string) => {
-  // fetch room info
-  return client.query<IRoomInfoData, IRoomInfoVariables>({
-    query: ROOM_INFO_QUERY,
-    variables: {
-      roomId,
-    },
+    // setup communication
+    (async () => {
+      const sendMessage = sendMessageFactory(roomId);
+      sendMessage('Indoctrinating acolyte...');
+      forked.send({
+        operation: 'getRoomInfo',
+        payload: await getRoomInfo(roomId),
+      });
+      forked.on('message', (m) => {
+        sendMessage(m);
+      });
+    })();
   });
-};
-
-const sendMessageFactory = (roomId: string) => (content: string) => {
-  return client.mutate<IMessageCreateData, IMessageCreateVariables>({
-    mutation: MESSAGE_CREATE_MUTATION,
-    variables: {
-      roomId,
-      content,
-    },
-  });
-};
-
-const serveRoom = async (_channel: string, roomId: string) => {
-  const sendMessage = sendMessageFactory(roomId);
-  sendMessage('Indoctrinating acolyte...');
-
-  const messageSubscriber = redis.createClient();
-  const room = await getRoomInfo(roomId);
-  if (!room.data || !room.data.rwRoom) {
-    throw new Error('Unable to obtain room info');
-  }
-  const cards = room.data.rwRoom.deck.cards;
-  let currentBack: string | null = null;
-
-  const serveNextCard = (i: number) => {
-    if (i >= cards.length) {
-      sendMessage('deck has been served!');
-    } else {
-      const card = cards[i];
-      currentBack = card.back;
-      sendMessage(`Next card: ${card.front}`);
-      setTimeout(serveNextCard, 10_000, ++i);
-    }
-  };
-  serveNextCard(0);
-
-  const handleUserMessage = async (_roomChannel: string, content: string) => {
-    const separator = content.indexOf(':');
-    const userId = content.slice(0, separator);
-    const message = content.slice(separator + 1);
-    if (message === currentBack) {
-      sendMessage('You got it!');
-    }
-    // TODO
-  };
-
-  messageSubscriber.subscribe(`writerite:room::${roomId}`);
-  messageSubscriber.on('message', handleUserMessage);
-};
-
-const roomSubscriber = redis.createClient();
-roomSubscriber.subscribe('writerite:room:activating');
-
-roomSubscriber.on('message', serveRoom);
+});
