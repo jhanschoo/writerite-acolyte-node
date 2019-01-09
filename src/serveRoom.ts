@@ -1,13 +1,9 @@
-import config from 'config';
 import { sendMessage } from './serveRoomUtil';
 import { ApolloQueryResult } from 'apollo-client';
 import { IRoomInfoData } from './gql';
-import { IRedisConfig } from './types';
 import { createRedis } from './createRedis';
 
 const [nodeBin, script, roomId, deckId] = process.argv;
-
-const REDIS = config.get<IRedisConfig>('REDIS');
 
 const main = async (room: ApolloQueryResult<IRoomInfoData>) => {
 

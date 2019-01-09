@@ -1,14 +1,17 @@
 import { IRedisConfig } from './types';
-import config from 'config';
 import Redis from 'ioredis';
 
 import './assertConfig';
 
-const REDIS = config.get<IRedisConfig>('REDIS');
+const { REDIS_HOST, REDIS_PORT } = process.env;
 const redisOptions = {
-  host: REDIS.HOST,
-  port: parseInt(REDIS.PORT, 10),
+  host: REDIS_HOST || '127.0.0.1',
+  port: (REDIS_PORT) ? parseInt(REDIS_PORT , 10) : 6379,
   db: 2,
+  retryStrategy: (times: number) => {
+    const delay = Math.min(times * 50, 2000);
+    return delay;
+  },
 };
 
 export const createRedis = () => {

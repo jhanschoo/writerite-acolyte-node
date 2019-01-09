@@ -5,10 +5,10 @@ node_modules/
 generated/
 
 # logs
-yarn-error.log
+npm-debug.log
 
 # dist
 dist/
 
-# config
-config/
+# secrets and local config
+.env

@@ -1,14 +1,14 @@
-import config from 'config';
+import dotenv from 'dotenv';
+dotenv.config();
 
-const PATHS = [
-  'GRAPHQL.HTTP',
-  'GRAPHQL.WS',
-  'REDIS.HOST',
-  'REDIS.PORT',
+const ENVVARS = [
+  'GRAPHQL_HTTP',
 ];
 
-PATHS.forEach((path) => {
-  if (!config.has(path)) {
-    throw new Error(`configuration value ${path} not found`);
+ENVVARS.forEach((varname) => {
+  if (!process.env[varname]) {
+    throw new Error(`configuration value ${varname} not found`);
   }
 });
+
+export default process.env;

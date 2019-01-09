@@ -7,26 +7,27 @@ import { createPersistedQueryLink } from 'apollo-link-persisted-queries';
 
 import fetch from 'node-fetch';
 
-import config = require('config');
+import './assertConfig';
 import { createRedis } from './createRedis';
-import { IGraphQLConfig } from './types';
 
 // c.f. https://github.com/Akryum/vue-cli-plugin-apollo/blob/master/graphql-client/src/index.js
 
 let TOKEN: string | null = null;
-const GRAPHQL = config.get<IGraphQLConfig>('GRAPHQL');
+const { GRAPHQL_HTTP } = process.env;
 
 const redisClient = createRedis();
 
-redisClient.get('writerite:acolyte:jwt', (err, token) => {
-  if (err) {
-    throw err;
-  } else {
-    TOKEN = token;
-    // tslint:disable-next-line: no-console
-    console.log('token acquired');
-  }
-});
+(function refreshToken() {
+  redisClient.get('writerite:acolyte:jwt', (err, token) => {
+    if (err) {
+      // tslint:disable-next-line: no-console
+      console.error(err.message);
+    } else {
+      TOKEN = token;
+    }
+    setTimeout(refreshToken, 2000);
+  });
+})();
 
 const getAuth = () => {
   return TOKEN ? `Bearer ${TOKEN}` : '';
@@ -35,7 +36,7 @@ const getAuth = () => {
 const cache = new InMemoryCache();
 
 const httpLink = createUploadLink({
-  uri: GRAPHQL.HTTP,
+  uri: GRAPHQL_HTTP,
   credentials: 'same-origin',
   fetch,
 });
